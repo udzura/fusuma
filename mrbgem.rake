@@ -1,8 +1,8 @@
 pjroot = File.expand_path('..', __FILE__)
 
 MRuby::Gem::Specification.new('fusuma') do |spec|
-  spec.license = 'MIT'
-  spec.author  = 'MRuby Developer'
+  spec.license = 'GPL-2.0'
+  spec.author  = 'Uchio Kondo'
   spec.summary = 'fusuma'
   spec.bins    = ['fusuma']
 
