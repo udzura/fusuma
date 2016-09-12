@@ -12,6 +12,7 @@ MRuby::Build.new do |conf|
   conf.enable_debug
   conf.enable_test
 
+  conf.gembox 'default'
   gem_config(conf)
 end
 
