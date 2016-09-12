@@ -1,0 +1,2 @@
+class FUSE
+end
