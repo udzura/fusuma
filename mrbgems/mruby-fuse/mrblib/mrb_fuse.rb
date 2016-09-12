@@ -1,2 +1,2 @@
-class FUSE
+module FUSE
 end
