@@ -2,7 +2,6 @@
 ## FUSE Test
 ##
 
-assert("FUSE#hello") do
-  t = FUSE.new "hello"
-  assert_equal("hello", t.hello)
+assert("FUSE") do
+  assert_true(FUSE.is_a? Module)
 end
