@@ -6,7 +6,11 @@ def gem_config(conf)
 end
 
 MRuby::Build.new do |conf|
-  toolchain :clang
+  if `uname` =~ /linux/i
+    toolchain :gcc
+  else
+    toolchain :clang
+  end
 
   conf.enable_bintest
   conf.enable_debug
