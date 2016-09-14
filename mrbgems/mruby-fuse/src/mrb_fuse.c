@@ -13,6 +13,9 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 
 #include <mruby.h>
 #include <mruby/data.h>
@@ -25,9 +28,15 @@
 static const char *hello_str = "Hello mruby!\n";
 static const char *hello_path = "/hello";
 
+static int gettid(void)
+{
+  return (int)syscall(SYS_gettid);
+}
+
 static int mrb_fuse_getattr(const char *path, struct stat *stbuf)
 {
   int res = 0;
+  printf("Call getattr for %s - %d\n", path, gettid());
 
   memset(stbuf, 0, sizeof(struct stat));
   if (strcmp(path, "/") == 0) {
@@ -49,6 +58,7 @@ static int mrb_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 {
   (void) offset;
   (void) fi;
+  printf("Call readdir for %s - %d\n", path, gettid());
   // (void) flags;
 
   if (strcmp(path, "/") != 0)
@@ -63,6 +73,7 @@ static int mrb_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 static int mrb_fuse_open(const char *path, struct fuse_file_info *fi)
 {
+  printf("Call open for %s - %d\n", path, gettid());
   if (strcmp(path, hello_path) != 0)
     return -ENOENT;
 
@@ -75,6 +86,7 @@ static int mrb_fuse_open(const char *path, struct fuse_file_info *fi)
 static int mrb_fuse_read(const char *path, char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi)
 {
+  printf("Call read for %s - %d\n", path, gettid());
   mrb_state *mrb;
   struct RClass *fuse;
   mrb_value instance, values;
@@ -99,17 +111,21 @@ static int mrb_fuse_read(const char *path, char *buf, size_t size, off_t offset,
   if(mrb_nil_p(values))
     return -ENOENT;
 
-  value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
+  //value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
+  value = strdup("mruby fuse!! this is example\n");
   len = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
+
+  printf("value=%s, len=%d, size=%d, offset=%d\n", value, len, size, offset);
 
   if (offset < len) {
     if (offset + size > len)
       size = len - offset;
-    memcpy(buf, hello_str + offset, size);
+    memcpy(buf, value + offset, size);
   } else {
     size = 0;
   }
 
+  printf("value=%s, len=%d, size=%d, offset=%d\n", value, len, size, offset);
   return size;
 }
 

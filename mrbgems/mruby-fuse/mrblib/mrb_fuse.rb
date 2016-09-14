@@ -13,6 +13,7 @@ module FUSE
       fuse_args << '-o' << 'default_permissions'
       fuse_args << '-o' << "fsname=#{fsname}"  if fsname
       fuse_args << '-o' << "fsname=#{subtype}" if subtype
+      fuse_args << '-f'
       invoke_fuse_main(fuse_args)
     end
   end
