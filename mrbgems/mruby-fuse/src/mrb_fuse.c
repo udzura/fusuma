@@ -8,6 +8,7 @@
 
 #define FUSE_USE_VERSION 30
 #include <fuse.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -16,6 +17,7 @@
 #include <mruby.h>
 #include <mruby/data.h>
 #include <mruby/string.h>
+#include <mruby/array.h>
 #include "mrb_fuse.h"
 
 #define DONE mrb_gc_arena_restore(mrb, 0);
@@ -73,13 +75,33 @@ static int mrb_fuse_open(const char *path, struct fuse_file_info *fi)
 static int mrb_fuse_read(const char *path, char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi)
 {
+  mrb_state *mrb;
+  struct RClass *fuse;
+  mrb_value instance, values;
+  char *value;
   size_t len;
   (void) fi;
+  struct fuse_context *ctx = fuse_get_context();
+  if(!ctx) {
+    perror("fuse_get_context");
+    exit(2);
+  }
 
-  if(strcmp(path, hello_path) != 0)
+  mrb = (mrb_state *)ctx->private_data;
+  fuse = mrb_module_get(mrb, "FUSE");
+  instance = mrb_funcall(mrb, mrb_obj_value(fuse), "instance", 0);
+
+  values = mrb_funcall(mrb, instance, "read_all", 1, mrb_str_new_cstr(mrb, path));
+
+  /* values = mrb_funcall(mrb, instance, "read", 3, */
+  /*                      mrb_str_new_cstr(path), mrb_fixnum_value(size), mrb_fixnum_value(offset)); */
+
+  if(mrb_nil_p(values))
     return -ENOENT;
 
-  len = strlen(hello_str);
+  value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
+  len = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
+
   if (offset < len) {
     if (offset + size > len)
       size = len - offset;
@@ -127,7 +149,7 @@ void mrb_mruby_fuse_gem_init(mrb_state *mrb)
 {
   struct RClass *fuse;
   fuse = mrb_define_module(mrb, "FUSE");
-  mrb_define_class_method(mrb, fuse, "run", mrb_fuse_main, MRB_ARGS_REQ(1));
+  mrb_define_class_method(mrb, fuse, "invoke_fuse_main", mrb_fuse_main, MRB_ARGS_REQ(1));
   DONE;
 }
 
