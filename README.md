@@ -6,9 +6,10 @@ FUSe Upon Mruby-script Assistance
 
 ## How to build
 
-Install mruby build-ready environment. Then:
+Install mruby-build-ready environment. Then:
 
-```
+```bash
+git clone https://github.com/udzura/fusuma.git; cd fusuma
 rake
 # TODO: more useful fusuma command
 sudo cp ./mruby/bin/mruby /usr/local/bin/fusuma
@@ -16,7 +17,7 @@ sudo cp ./mruby/bin/mruby /usr/local/bin/fusuma
 
 ## Example
 
-Just define a class that respond to `on_open`, `on_read`, `on_getattr`, ... as [defined in libfuse's strust fuse_operation](https://fossies.org/dox/fuse-2.9.7/structfuse__operations.html).
+Just define a class that respond to `on_open`, `on_read`, `on_getattr`, ... as [defined in libfuse's struct fuse_operation](https://fossies.org/dox/fuse-2.9.7/structfuse__operations.html).
 
 ```ruby
 # Duck typing object to return from on_getattr
