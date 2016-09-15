@@ -11,4 +11,6 @@ MRuby::Gem::Specification.new('mruby-fuse') do |spec|
 
   spec.linker.flags.concat lib_flags.select{|f| f.start_with? "-L" }
   spec.linker.libraries.concat libs
+
+  spec.add_dependency 'mruby-struct', core: 'mruby-struct'
 end
