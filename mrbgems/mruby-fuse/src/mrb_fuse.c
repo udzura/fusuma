@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <stdbool.h>
 
 #include <mruby.h>
 #include <mruby/data.h>
@@ -25,29 +26,50 @@
 
 #define DONE mrb_gc_arena_restore(mrb, 0);
 
-static const char *hello_str = "Hello mruby!\n";
-static const char *hello_path = "/hello";
-
 static int gettid(void)
 {
   return (int)syscall(SYS_gettid);
 }
 
+static mrb_state *mrb_fuse_get_mrb_from_context(struct fuse_context *ctx)
+{
+  if(!ctx) {
+    perror("fuse_get_context");
+    exit(2);
+  }
+  return (mrb_state *)ctx->private_data;
+}
+
+static mrb_value mrb_fuse_find_or_create_instance(mrb_state *mrb, const char *path)
+{
+  struct RClass *fuse;
+  mrb_value instance;
+  fuse = mrb_module_get(mrb, "FUSE");
+  instance = mrb_funcall(mrb, mrb_obj_value(fuse), "find_or_create_instance_by_path", 1, mrb_str_new_cstr(mrb, path));
+  return instance;
+}
+
 static int mrb_fuse_getattr(const char *path, struct stat *stbuf)
 {
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value stat, st_size;
   int res = 0;
   printf("Call getattr for %s - %d\n", path, gettid());
 
-  memset(stbuf, 0, sizeof(struct stat));
-  if (strcmp(path, "/") == 0) {
-    stbuf->st_mode = S_IFDIR | 0755;
-    stbuf->st_nlink = 2;
-  } else if (strcmp(path, hello_path) == 0) {
-    stbuf->st_mode = S_IFREG | 0444;
-    stbuf->st_nlink = 1;
-    stbuf->st_size = strlen(hello_str);
-  } else {
+  stat = mrb_funcall(mrb, instance, "on_getattr", 0);
+
+  if(mrb_nil_p(stat)) {
     res = -ENOENT;
+  } else {
+    memset(stbuf, 0, sizeof(struct stat));
+
+    stbuf->st_mode  = (mode_t) mrb_fixnum(mrb_funcall(mrb, stat, "st_mode", 0));
+    stbuf->st_nlink = (nlink_t)mrb_fixnum(mrb_funcall(mrb, stat, "st_nlink", 0));
+    st_size = mrb_funcall(mrb, stat, "st_size", 0);
+    if(!mrb_nil_p(st_size)) {
+      stbuf->st_size = (off_t)mrb_fixnum(st_size);
+    }
   }
 
   return res;
@@ -56,76 +78,90 @@ static int mrb_fuse_getattr(const char *path, struct stat *stbuf)
 static int mrb_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
        off_t offset, struct fuse_file_info *fi)
 {
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value files;
   (void) offset;
   (void) fi;
   printf("Call readdir for %s - %d\n", path, gettid());
-  // (void) flags;
 
-  if (strcmp(path, "/") != 0)
+  files = mrb_funcall(mrb, instance, "on_readdir", 0);
+
+  if(mrb_nil_p(files)) {
     return -ENOENT;
+  }
 
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
-  filler(buf, hello_path + 1, NULL, 0);
+
+  int len = RARRAY_LEN(files);
+  for (int i = 0; i < len; i++) {
+    filler(buf, RSTRING_PTR(mrb_ary_ref(mrb, files, i)), NULL, 0);
+  }
 
   return 0;
 }
 
 static int mrb_fuse_open(const char *path, struct fuse_file_info *fi)
 {
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value ret;
+  (void) fi;
   printf("Call open for %s - %d\n", path, gettid());
-  if (strcmp(path, hello_path) != 0)
+
+  // TODO: use fuse_file_info in mruby layer
+  /* if ((fi->flags & 3) != O_RDONLY) */
+  /*   return -EACCES; */
+
+  ret = mrb_funcall(mrb, instance, "on_open", 0);
+
+  if(mrb_nil_p(ret)) {
     return -ENOENT;
-
-  if ((fi->flags & 3) != O_RDONLY)
-    return -EACCES;
-
-  return 0;
+  }
+  return mrb_fixnum(ret);
 }
 
 static int mrb_fuse_read(const char *path, char *buf, size_t size, off_t offset,
           struct fuse_file_info *fi)
 {
-  printf("Call read for %s - %d\n", path, gettid());
-  mrb_state *mrb;
-  struct RClass *fuse;
-  mrb_value instance, values;
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value values;
   char *value;
-  size_t len;
+  size_t len = 0;
+  bool read_all = false;
   (void) fi;
-  struct fuse_context *ctx = fuse_get_context();
-  if(!ctx) {
-    perror("fuse_get_context");
-    exit(2);
+  printf("Call read for %s - %d\n", path, gettid());
+
+  mrb_bool has_read_all = mrb_respond_to(mrb, instance, mrb_intern_cstr(mrb, "on_read_all"));
+  if (has_read_all) {
+    values = mrb_funcall(mrb, instance, "on_read_all", 0);
+    read_all = true;
+    value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
+    len = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
+  } else {
+    values = mrb_funcall(mrb, instance, "on_read", 2,
+                         mrb_fixnum_value(size), mrb_fixnum_value(offset));
+    value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
+    size = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
   }
-
-  mrb = (mrb_state *)ctx->private_data;
-  fuse = mrb_module_get(mrb, "FUSE");
-  instance = mrb_funcall(mrb, mrb_obj_value(fuse), "instance", 0);
-
-  values = mrb_funcall(mrb, instance, "read_all", 1, mrb_str_new_cstr(mrb, path));
-
-  /* values = mrb_funcall(mrb, instance, "read", 3, */
-  /*                      mrb_str_new_cstr(path), mrb_fixnum_value(size), mrb_fixnum_value(offset)); */
 
   if(mrb_nil_p(values))
     return -ENOENT;
 
-  //value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
-  value = strdup("mruby fuse!! this is example\n");
-  len = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
-
-  printf("value=%s, len=%d, size=%d, offset=%d\n", value, len, size, offset);
-
-  if (offset < len) {
-    if (offset + size > len)
-      size = len - offset;
-    memcpy(buf, value + offset, size);
+  if (read_all) {
+    if (offset < len) {
+      if (offset + size > len)
+        size = len - offset;
+      memcpy(buf, value + offset, size);
+    } else {
+      size = 0;
+    }
   } else {
-    size = 0;
+    memcpy(buf, value, size);
   }
 
-  printf("value=%s, len=%d, size=%d, offset=%d\n", value, len, size, offset);
   return size;
 }
 
