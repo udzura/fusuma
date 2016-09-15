@@ -6,8 +6,9 @@ MRuby::Gem::Specification.new('fusuma') do |spec|
   spec.summary = 'fusuma'
   spec.bins    = ['fusuma']
 
-  spec.add_dependency 'mruby-print', :core => 'mruby-print'
-  spec.add_dependency 'mruby-mtest', :mgem => 'mruby-mtest'
+  spec.add_dependency 'mruby-print',  core: 'mruby-print'
+  spec.add_dependency 'mruby-struct', core: 'mruby-struct'
+  spec.add_dependency 'mruby-mtest',  mgem: 'mruby-mtest'
 
-  spec.add_dependency 'mruby-fuse',  :path => "#{pjroot}/mrbgems/mruby-fuse"
+  spec.add_dependency 'mruby-fuse', path: "#{pjroot}/mrbgems/mruby-fuse"
 end
