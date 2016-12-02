@@ -16,12 +16,14 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <stdbool.h>
 
 #include <mruby.h>
 #include <mruby/data.h>
 #include <mruby/string.h>
 #include <mruby/array.h>
+#include <mruby/error.h>
 #include "mrb_fuse.h"
 
 #define DONE mrb_gc_arena_restore(mrb, 0);
@@ -102,6 +104,22 @@ static int mrb_fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
   return 0;
 }
 
+static int mrb_fuse_truncate(const char *path, off_t size)
+{
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value ret;
+
+  printf("Call truncate for %s - %d\n", path, gettid());
+
+  if(! mrb_respond_to(mrb, instance, mrb_intern_cstr(mrb, "on_truncate"))){
+    return 0;
+  }
+  ret = mrb_funcall(mrb, instance, "on_truncate", 1, mrb_fixnum_value((mrb_int)size));
+
+  return mrb_fixnum(ret);
+}
+
 static int mrb_fuse_open(const char *path, struct fuse_file_info *fi)
 {
   mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
@@ -123,7 +141,7 @@ static int mrb_fuse_open(const char *path, struct fuse_file_info *fi)
 }
 
 static int mrb_fuse_read(const char *path, char *buf, size_t size, off_t offset,
-          struct fuse_file_info *fi)
+                         struct fuse_file_info *fi)
 {
   mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
   mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
@@ -165,11 +183,93 @@ static int mrb_fuse_read(const char *path, char *buf, size_t size, off_t offset,
   return size;
 }
 
+static int mrb_fuse_write(const char *path, const char *buf, size_t size, off_t offset,
+                          struct fuse_file_info *fi)
+{
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value value;
+  char strbuf[size + 1];
+
+  printf("Call write for %s - %d\n", path, gettid());
+
+  if(memcpy(strbuf, buf, size) < 0) {
+    mrb_sys_fail(mrb, "memcpy failed on_write");
+  }
+
+  value = mrb_funcall(mrb, instance, "on_write", 2,
+                      mrb_str_new_cstr(mrb, strbuf), mrb_fixnum_value(offset));
+  size = (size_t)mrb_fixnum(value);
+
+  return size;
+}
+
+static int mrb_fuse_statfs(const char *path, struct statvfs *stbuf)
+{
+  /* FIXME: add dummy statfs for now */
+  printf("Call statfs for %s - %d\n", path, gettid());
+
+  return 0;
+}
+
+static int mrb_fuse_utimens(const char *path, const struct timespec ts[2])
+{
+  /* use ts[0](atime) and ts[1](mtime) for something, with conversion to mruby-time... */
+  printf("Call utimens for %s - %d\n", path, gettid());
+
+  return 0;
+}
+
+static int mrb_fuse_fsync(const char *path, int isdatasync, struct fuse_file_info *fi)
+{
+  /* FIXME: add dummy fsync for now */
+  printf("Call fsync for %s - %d\n", path, gettid());
+
+  return 0;
+}
+
+static int mrb_fuse_fallocate(const char *path, int mode, off_t offset, off_t length,
+                              struct fuse_file_info *fi)
+{
+  /* FIXME: add dummy fallocate for now */
+  printf("Call fallocate for %s - %d\n", path, gettid());
+
+  return 0;
+}
+
+static int mrb_fuse_release(const char *path, struct fuse_file_info *fi)
+{
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value value;
+
+  printf("Call release for %s - %d\n", path, gettid());
+
+  /* Guard when there's no on_release implemented */
+  if(! mrb_respond_to(mrb, instance, mrb_intern_cstr(mrb, "on_release"))){
+    return 0;
+  }
+
+  value = mrb_funcall(mrb, instance, "on_release", 0);
+  if(mrb_fixnum_p(value)) {
+    return mrb_fixnum(value);
+  }
+
+  return 0;
+}
+
 static struct fuse_operations mrb_fuse_oper = {
   .getattr	= mrb_fuse_getattr,
   .readdir	= mrb_fuse_readdir,
+  .truncate = mrb_fuse_truncate,
   .open		= mrb_fuse_open,
   .read		= mrb_fuse_read,
+  .write  = mrb_fuse_write,
+  .statfs = mrb_fuse_statfs,
+  .fsync  = mrb_fuse_fsync,
+  .utimens = mrb_fuse_utimens,
+  .fallocate = mrb_fuse_fallocate,
+  .release = mrb_fuse_release,
 };
 
 static mrb_value mrb_fuse_main(mrb_state *mrb, mrb_value self)
