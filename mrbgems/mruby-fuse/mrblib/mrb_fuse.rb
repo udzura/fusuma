@@ -6,8 +6,15 @@ module FUSE
     def pool
       @__pool__ ||= {}
     end
-    attr_accessor :program_name, :path, :fsname, :subtype
+    attr_accessor :program_name, :path, :fsname, :subtype,
+                  :multithread,
+                  :daemonize,
+                  :extra_fuse_options
     attr_reader   :klass, :args
+
+    def help
+      invoke_fuse_main(['mruby-fuse', '/tmp', '-h'])
+    end
 
     def run(klass, *args)
       @klass = klass
@@ -15,10 +22,14 @@ module FUSE
       fuse_args = []
       fuse_args << program_name
       fuse_args << path
+      fuse_args << '-s' if multithread
       fuse_args << '-o' << 'default_permissions'
       fuse_args << '-o' << "fsname=#{fsname}"  if fsname
       fuse_args << '-o' << "fsname=#{subtype}" if subtype
-      fuse_args << '-f'
+      if extra_fuse_options
+        fuse_args.concat extra_fuse_options
+      end
+      fuse_args << '-f' if daemonize
       invoke_fuse_main(fuse_args)
     end
 
