@@ -49,9 +49,14 @@ class Example
     return [@value, @value.size]
   end
 
+  def on_truncate(size)
+    @value = ""
+    return 0
+  end
+
   def on_write(buf, offset)
-    puts "[Debug] on_write: content=#{buf.inspect}, pffset=#{offset}"
-    return -1
+    @value << buf
+    return buf.size
   end
 end
 
