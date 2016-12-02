@@ -196,6 +196,7 @@ static int mrb_fuse_write(const char *path, const char *buf, size_t size, off_t 
   if(memcpy(strbuf, buf, size) < 0) {
     mrb_sys_fail(mrb, "memcpy failed on_write");
   }
+  strbuf[size] = '\0';
 
   value = mrb_funcall(mrb, instance, "on_write", 2,
                       mrb_str_new_cstr(mrb, strbuf), mrb_fixnum_value(offset));
