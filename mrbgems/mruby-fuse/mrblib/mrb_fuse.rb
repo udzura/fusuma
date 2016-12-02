@@ -22,14 +22,14 @@ module FUSE
       fuse_args = []
       fuse_args << program_name
       fuse_args << path
-      fuse_args << '-s' if multithread
+      fuse_args << '-s' unless multithread
       fuse_args << '-o' << 'default_permissions'
       fuse_args << '-o' << "fsname=#{fsname}"  if fsname
       fuse_args << '-o' << "fsname=#{subtype}" if subtype
       if extra_fuse_options
         fuse_args.concat extra_fuse_options
       end
-      fuse_args << '-f' if daemonize
+      fuse_args << '-f' unless daemonize
       invoke_fuse_main(fuse_args)
     end
 
