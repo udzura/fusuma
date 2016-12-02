@@ -60,4 +60,4 @@ class Example
   end
 end
 
-FUSE.run FUSE::Example
+FUSE.run Example
