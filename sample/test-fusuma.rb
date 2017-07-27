@@ -15,6 +15,8 @@ class Example
       @value = "Hello, mruby fuse!!\n"
     when "/world"
       @value = "Hello, yet another mruby fuse!!\n"
+    when "/sym"
+      @value = "/"
     end
   end
 
@@ -26,6 +28,8 @@ class Example
       return FileStat.new(FUSE::S_IFREG|0444, 1, @value.size)
     when "/world"
       return FileStat.new(FUSE::S_IFREG|0644, 1, @value.size)
+    when "/sym"
+      return FileStat.new(FUSE::S_IFLNK|0777, 1, @value.size)
     else
       return nil
     end
@@ -46,6 +50,11 @@ class Example
 
   def on_read_all
     return nil if @path == "/"
+    return [@value, @value.size]
+  end
+
+  def on_readlink
+    return nil if @path != "/sym"
     return [@value, @value.size]
   end
 
