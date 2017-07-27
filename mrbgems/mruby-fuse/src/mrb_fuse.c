@@ -266,7 +266,7 @@ static int mrb_fuse_readlink(const char *path, char *buf, size_t buf_len) {
   mrb_value values;
 
   printf("Call readlink for %s - %d\n", path, gettid());
-  values = mrb_funcall(mrb, instance, "on_read_all", 0);
+  values = mrb_funcall(mrb, instance, "on_readlink", 0);
 
   value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
   buf_len = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
@@ -274,7 +274,6 @@ static int mrb_fuse_readlink(const char *path, char *buf, size_t buf_len) {
 
   return 0;
 }
-
 
 static struct fuse_operations mrb_fuse_oper = {
   .getattr	= mrb_fuse_getattr,
