@@ -259,6 +259,23 @@ static int mrb_fuse_release(const char *path, struct fuse_file_info *fi)
   return 0;
 }
 
+static int mrb_fuse_readlink(const char *path, char *buf, size_t buf_len) {
+  char *value;
+  mrb_state *mrb = mrb_fuse_get_mrb_from_context(fuse_get_context());
+  mrb_value instance = mrb_fuse_find_or_create_instance(mrb, path);
+  mrb_value values;
+
+  printf("Call readlink for %s - %d\n", path, gettid());
+  values = mrb_funcall(mrb, instance, "on_read_all", 0);
+
+  value = RSTRING_PTR(mrb_ary_ref(mrb, values, 0));
+  buf_len = mrb_fixnum(mrb_ary_ref(mrb, values, 1));
+  strncpy(buf, value, buf_len);
+
+  return 0;
+}
+
+
 static struct fuse_operations mrb_fuse_oper = {
   .getattr	= mrb_fuse_getattr,
   .readdir	= mrb_fuse_readdir,
@@ -271,6 +288,7 @@ static struct fuse_operations mrb_fuse_oper = {
   .utimens = mrb_fuse_utimens,
   .fallocate = mrb_fuse_fallocate,
   .release = mrb_fuse_release,
+  .readlink = mrb_fuse_readlink,
 };
 
 static mrb_value mrb_fuse_main(mrb_state *mrb, mrb_value self)
