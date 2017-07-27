@@ -1,6 +1,7 @@
 module FUSE
   S_IFDIR = 0040000
   S_IFREG = 0100000
+  S_IFLNK = 0120000
 
   class << self
     def pool
