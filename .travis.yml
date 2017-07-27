@@ -16,5 +16,8 @@ addons:
       - gperf
       - libfuse-dev
 
+before_script:
+  - sed -e '/mruby-mtest/ s/#spec.add_dependency/spec.add_dependency/' -i mrbgem.rake
+  - cp -fp .travis_build_config.rb build_config.rb
 script:
   - rake test
